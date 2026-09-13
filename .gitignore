@@ -1,0 +1,5 @@
+# OS noise. macOS writes .DS_Store on directory access; this repo is worked
+# from both a Mac and a Windows box (see the workspace repo for conventions).
+.DS_Store
+Thumbs.db
+desktop.ini
