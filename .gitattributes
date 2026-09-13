@@ -1,0 +1,22 @@
+# Line endings are pinned here, not by core.autocrlf, so the repo behaves the
+# same on Windows and macOS. Do not "fix" line endings by changing git config.
+* text=auto eol=lf
+
+# Binary formats -- never normalized, never diffed as text.
+*.xlsx  binary
+*.xls   binary
+*.docx  binary
+*.pptx  binary
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.woff  binary
+*.woff2 binary
+
+# Windows-only scripts genuinely want CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
