@@ -1,19 +1,19 @@
 version: 2
 
-# Dependabot. Two jobs here, and the second one is the reason every repo in this
-# account has this file even when it ships no dependencies at all:
+# Dependabot.
 #
-#   1. Keep declared dependencies patched.
-#   2. Keep the PINNED GITHUB ACTIONS current. Every repo now calls the shared
-#      CI gate, which pins actions/checkout and actions/setup-python by major
-#      tag. Those pins go stale silently and are themselves a supply-chain
-#      surface -- a compromised or abandoned action runs with the workflow's
-#      token. `github-actions` at "/" makes Dependabot read .github/workflows.
+# NOTE ON `github-actions`: it is configured ONLY in repos that pin actions
+# directly (workspace, mxalert, SecurevisionPartners). The other repos call the
+# shared gate as `uses: eddieschwartz/workspace/.github/workflows/ci.yml@main`,
+# which is a BRANCH ref, and Dependabot updates version pins -- not branches. It
+# also cannot reach that private repo, and failed every run with
+# `git_dependencies_not_reachable`. Two independent reasons it has nothing to do
+# there, so it is not configured there. A weekly failing job is noise, and noise
+# is how a check gets ignored.
 #
-# Updates are GROUPED on purpose. Fifteen repos each opening one PR per bumped
-# package is a weekly flood, and a flood gets ignored -- the same alert-fatigue
-# failure mode that governs the storm tiers in mxalert. One PR per ecosystem per
-# week is reviewable; fifteen are not.
+# Updates are GROUPED: one PR per ecosystem per week is reviewable, fifteen
+# separate PRs are a flood that gets ignored -- the alert-fatigue rule that
+# governs mxalert's storm tiers, applied to dependency bumps.
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
