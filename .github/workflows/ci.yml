@@ -1,0 +1,23 @@
+name: CI
+
+# Calls the shared gate in eddieschwartz/workspace, so every repo in repos.txt
+# runs the same rules at the same severity. Rationale lives in one place:
+# workspace/.github/workflows/ci.yml -- a committed .pre-commit-config.yaml
+# proves nothing about whether anything is gated on THIS machine, and CI is the
+# half that cannot go missing per-clone or be skipped with --no-verify.
+#
+# Scan only -- no Python suite.
+# Semgrep baseline verified clean 2026-09-27 before enabling: a gate that is red
+# on arrival gets switched off, and a switched-off gate still looks installed.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  shared:
+    uses: eddieschwartz/workspace/.github/workflows/ci.yml@main
+    with:
+      semgrep: true
+      python-tests: false
