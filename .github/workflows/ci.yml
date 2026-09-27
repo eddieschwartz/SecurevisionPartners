@@ -34,8 +34,8 @@ jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"     # semgrep's deps lag the newest CPython
       - name: Install semgrep
@@ -117,7 +117,7 @@ jobs:
   trivy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Trivy filesystem scan
         # Covers the three Aikido columns semgrep does not: dependency CVEs,
         # secrets, and IaC/Docker misconfiguration. One binary, no account.
