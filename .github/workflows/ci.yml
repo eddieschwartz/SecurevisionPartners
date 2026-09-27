@@ -1,23 +1,48 @@
 name: CI
 
-# Calls the shared gate in eddieschwartz/workspace, so every repo in repos.txt
-# runs the same rules at the same severity. Rationale lives in one place:
-# workspace/.github/workflows/ci.yml -- a committed .pre-commit-config.yaml
-# proves nothing about whether anything is gated on THIS machine, and CI is the
-# half that cannot go missing per-clone or be skipped with --no-verify.
+# STANDALONE, and deliberately so -- this is the ONE repo that cannot call the
+# shared gate in eddieschwartz/workspace.
 #
-# Scan only -- no Python suite.
-# Semgrep baseline verified clean 2026-09-27 before enabling: a gate that is red
-# on arrival gets switched off, and a switched-off gate still looks installed.
+# Why: this repo is PUBLIC (it serves GitHub Pages); workspace is PRIVATE.
+# GitHub's reusable-workflow access grant ("access_level: user") extends a
+# private workflow only to other PRIVATE repos of the same owner, so a public
+# caller gets "workflow was not found" at startup -- a failure that cannot even
+# be re-run, which is what made it look like a malformed file rather than a
+# permissions boundary.
+#
+# The fix is NOT to make workspace public: it carries cross-machine conventions
+# and repo inventory that have no reason to be world-readable. So the steps are
+# duplicated here instead. THAT MEANS THIS FILE DRIFTS. If the shared gate's
+# rules or severity change, change them here in the same commit -- same rule as
+# the three copies of the basin filter in mxalert (§10 #25).
+#
+# Kept identical to workspace/.github/workflows/ci.yml as of 2026-09-27:
+# same rulesets, same ERROR severity, same --metrics off, same python 3.12.
 
 on:
   push:
   pull_request:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
-  shared:
-    uses: eddieschwartz/workspace/.github/workflows/ci.yml@main
-    with:
-      semgrep: true
-      python-tests: false
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"     # semgrep's deps lag the newest CPython
+      - name: Install semgrep
+        run: pip install --quiet semgrep
+      - name: Scan
+        run: |
+          semgrep scan \
+            --config p/secrets \
+            --config p/security-audit \
+            --severity ERROR \
+            --metrics off \
+            --error \
+            --quiet
