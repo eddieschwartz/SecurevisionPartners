@@ -16,8 +16,11 @@ name: CI
 # rules or severity change, change them here in the same commit -- same rule as
 # the three copies of the basin filter in mxalert (§10 #25).
 #
-# Kept identical to workspace/.github/workflows/ci.yml as of 2026-09-27:
-# same rulesets, same ERROR severity, same --metrics off, same python 3.12.
+# Kept identical to workspace/.github/workflows/ci.yml: same rulesets, same
+# ERROR severity, same local rules (verbatim), same trivy job and version.
+# workspace/check-drift.sh compares all four, because on 2026-09-27 this file
+# claimed to be identical while lacking trivy and the local rules entirely --
+# both were added to the shared gate after this copy was taken.
 
 on:
   push:
@@ -37,12 +40,100 @@ jobs:
           python-version: "3.12"     # semgrep's deps lag the newest CPython
       - name: Install semgrep
         run: pip install --quiet semgrep
+      - name: Local rules
+        # Canonical copy: workspace/semgrep-rules/raw-html-sink.yaml. INLINED
+        # because a reusable workflow runs in the CALLER's checkout and cannot
+        # read another private repo's files without a cross-repo token.
+        #
+        # The heredoc body must be a VERBATIM, indented copy of that file --
+        # check-drift.sh dedents it and compares bytes. Until 2026-09-27 this
+        # copy silently lacked the second rule (raw-html-sink-in-html), so CI
+        # reported 0 where the canonical rule finds 3 in stegotone.
+        #
+        # WARNING severity, so at the default --severity ERROR this is reported
+        # and does NOT fail the build. Promote per-repo once its baseline is
+        # clean; a gate that arrives red gets switched off.
+        run: |
+          mkdir -p .ci-rules
+          cat > .ci-rules/raw-html-sink.yaml <<'RULES'
+          rules:
+            - id: raw-html-sink
+              languages: [javascript, typescript]
+              severity: WARNING
+              message: >-
+                Non-literal value assigned to an HTML-parsing sink (innerHTML / outerHTML /
+                document.write / insertAdjacentHTML). Anything interpolated here is parsed as
+                HTML. Use textContent, or build nodes with document.createElement and set
+                properties. Aikido's AIK_*_insecure-document-method flags this; semgrep's own
+                p/xss only fires when it can see a KNOWN taint source (location.hash and
+                friends), so it stays silent on data that arrives from a fetch() response --
+                verified 2026-09-27 against intrawebs and stegotone, where p/xss found 0.
+              patterns:
+                - pattern-either:
+                    - pattern: $EL.innerHTML = $VAL
+                    - pattern: $EL.innerHTML += $VAL
+                    - pattern: $EL.outerHTML = $VAL
+                    - pattern: $EL.insertAdjacentHTML($POS, $VAL)
+                    - pattern: document.write($VAL)
+                    - pattern: document.writeln($VAL)
+                # A hardcoded string is not a sink worth flagging -- clearing a node with
+                # `el.innerHTML = ""` is the single most common line in this codebase.
+                - pattern-not: $EL.innerHTML = "..."
+                - pattern-not: $EL.innerHTML += "..."
+                - pattern-not: $EL.outerHTML = "..."
+                - pattern-not: $EL.insertAdjacentHTML($POS, "...")
+                - pattern-not: document.write("...")
+
+            # Same sink, inside a <script> block in an .html file. A separate rule because
+            # semgrep's JS parser does not descend into HTML -- the JS rule above scores 0
+            # on stegotone/web/static/index.html while Aikido finds 3. `generic` mode with
+            # a regex is the available workaround; it is cruder (no AST), so it is kept
+            # narrow and its only job is to stop an .html file being a blind spot.
+            - id: raw-html-sink-in-html
+              languages: [generic]
+              paths:
+                include: ["*.html", "*.htm"]
+              severity: WARNING
+              message: >-
+                Non-literal assigned to innerHTML/outerHTML inside an inline <script>.
+                Same risk as raw-html-sink; separate rule because semgrep does not parse
+                JS embedded in HTML.
+              pattern-regex: >-
+                (innerHTML|outerHTML)\s*\+?=\s*(?!['"`][^'"`]*['"`]\s*;)[^;\n]*[`+$]
+          RULES
+
       - name: Scan
         run: |
           semgrep scan \
             --config p/secrets \
             --config p/security-audit \
+            --config .ci-rules/raw-html-sink.yaml \
             --severity ERROR \
             --metrics off \
             --error \
-            --quiet
+            --quiet \
+            --exclude .ci-rules
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Trivy filesystem scan
+        # Covers the three Aikido columns semgrep does not: dependency CVEs,
+        # secrets, and IaC/Docker misconfiguration. One binary, no account.
+        #
+        # Virtualenvs and node_modules are skipped deliberately: they are not
+        # committed, so a finding there is about a developer's local disk rather
+        # than about this repo, and it would differ per machine.
+        # Tag is v-prefixed. `@0.33.1` exists as a tag on that repo but the
+        # v-less form is not what Actions resolves -- the job died at "Set up
+        # job" in 3s, which reads like a runner problem rather than a typo.
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: .venv,venv,node_modules
