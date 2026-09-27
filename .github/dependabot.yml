@@ -1,0 +1,27 @@
+version: 2
+
+# Dependabot. Two jobs here, and the second one is the reason every repo in this
+# account has this file even when it ships no dependencies at all:
+#
+#   1. Keep declared dependencies patched.
+#   2. Keep the PINNED GITHUB ACTIONS current. Every repo now calls the shared
+#      CI gate, which pins actions/checkout and actions/setup-python by major
+#      tag. Those pins go stale silently and are themselves a supply-chain
+#      surface -- a compromised or abandoned action runs with the workflow's
+#      token. `github-actions` at "/" makes Dependabot read .github/workflows.
+#
+# Updates are GROUPED on purpose. Fifteen repos each opening one PR per bumped
+# package is a weekly flood, and a flood gets ignored -- the same alert-fatigue
+# failure mode that governs the storm tiers in mxalert. One PR per ecosystem per
+# week is reviewable; fifteen are not.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
